@@ -13,22 +13,42 @@ export async function POST(req: NextRequest) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 
     if (serviceRoleKey) {
-      // Admin client — can look up any user by email in auth.users
-      const adminClient = createServerClient(supabaseUrl, serviceRoleKey, {
-        cookies: { getAll: () => [], setAll: () => {} },
-      })
-      const { data, error } = await adminClient.auth.admin.getUserByEmail(email)
-      if (error) {
-        return NextResponse.json({ error: error.message }, { status: 404 })
+      // Use the Supabase Auth Admin REST API to look up user by email
+      const response = await fetch(
+        `${supabaseUrl}/auth/v1/admin/users?filter=email:eq:${encodeURIComponent(email)}`,
+        {
+          headers: {
+            apikey: serviceRoleKey,
+            Authorization: `Bearer ${serviceRoleKey}`,
+          },
+        },
+      )
+
+      if (!response.ok) {
+        const errText = await response.text()
+        console.error('Admin lookup failed:', response.status, errText)
+        return NextResponse.json(
+          { error: 'User lookup failed. Check SUPABASE_SERVICE_ROLE_KEY.' },
+          { status: 500 },
+        )
       }
-      if (!data?.user) {
-        return NextResponse.json({ error: 'User not found' }, { status: 404 })
+
+      const result = await response.json()
+      const users = result.users || []
+
+      if (users.length === 0) {
+        return NextResponse.json(
+          { error: 'Student not found. Make sure they have signed up first.' },
+          { status: 404 },
+        )
       }
+
+      const found = users[0]
       return NextResponse.json({
         user: {
-          id: data.user.id,
-          email: data.user.email,
-          full_name: data.user.user_metadata?.full_name || 'Unknown',
+          id: found.id,
+          email: found.email,
+          full_name: found.user_metadata?.full_name || 'Unknown',
         },
       })
     }
