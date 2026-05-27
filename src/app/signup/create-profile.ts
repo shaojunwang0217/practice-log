@@ -27,6 +27,7 @@ export async function createProfile(userId: string, fullName: string, email: str
   const { error } = await supabase.from('profiles').insert({
     id: userId,
     full_name: fullName,
+    email,
     role,
   })
 
